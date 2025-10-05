@@ -1,0 +1,61 @@
+﻿name: ML Pipeline CI
+
+on:
+  push:
+    branches: [ kernelridge ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Train and Test Decision Tree Model
+      id: dtree
+      run: |
+        echo "=== Testing Decision Tree Model ==="
+        python train.py
+        echo "DTREE_MSE=$(python -c "from misc import load_data, preprocess_data; from sklearn.tree import DecisionTreeRegressor; df = load_data(); X_train, X_test, y_train, y_test = preprocess_data(df); model = DecisionTreeRegressor(random_state=42); model.fit(X_train, y_train); predictions = model.predict(X_test); from sklearn.metrics import mean_squared_error; print(mean_squared_error(y_test, predictions))")" >> $GITHUB_OUTPUT
+
+    - name: Train and Test Kernel Ridge Model
+      id: kernelridge
+      run: |
+        echo "=== Testing Kernel Ridge Model ==="
+        python train2.py
+        echo "KRIDGE_MSE=$(python -c "from misc import load_data, preprocess_data; from sklearn.kernel_ridge import KernelRidge; df = load_data(); X_train, X_test, y_train, y_test = preprocess_data(df); model = KernelRidge(alpha=1.0, kernel='linear'); model.fit(X_train, y_train); predictions = model.predict(X_test); from sklearn.metrics import mean_squared_error; print(mean_squared_error(y_test, predictions))")" >> $GITHUB_OUTPUT
+
+    - name: Compare Models Performance
+      run: |
+        echo "=== MODEL PERFORMANCE COMPARISON ==="
+        echo "Decision Tree MSE: ${{ steps.dtree.outputs.DTREE_MSE }}"
+        echo "Kernel Ridge MSE: ${{ steps.kernelridge.outputs.KRIDGE_MSE }}"
+        echo ""
+        echo "Performance Summary:"
+        echo "-------------------"
+        echo "| Model                | MSE Score       |"
+        echo "|----------------------|-----------------|"
+        echo "| DecisionTreeRegressor| ${{ steps.dtree.outputs.DTREE_MSE }} |"
+        echo "| KernelRidge          | ${{ steps.kernelridge.outputs.KRIDGE_MSE }} |"
+        echo ""
+        
+        # Determine which model performed better
+        DTREE_MSE=${{ steps.dtree.outputs.DTREE_MSE }}
+        KRIDGE_MSE=${{ steps.kernelridge.outputs.KRIDGE_MSE }}
+        
+        if (( $(echo "$DTREE_MSE < $KRIDGE_MSE" | bc -l) )); then
+          echo "RESULT: DecisionTreeRegressor performed better (lower MSE)"
+        else
+          echo "RESULT: KernelRidge performed better (lower MSE)"
+        fi
