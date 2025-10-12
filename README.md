@@ -11,3 +11,5 @@ This repository contains the code for the house price prediction workflow.
 ## Usage
 - To train the Decision Tree model: `python train.py`
 - To train the Kernel Ridge model: `python train2.py`
+## Test Pipeline Trigger
+- Test
